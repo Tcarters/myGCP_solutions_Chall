@@ -5,13 +5,14 @@
 - Set up Zone and Regions
 
 ```bash
-	gcloud config set compute/region Region
-	export region=<>
+	gcloud config set compute/region us-west3
+	export region=us-west3
 	
-	gcloud config set compute/zone Zone
-	export zone=<>
+	gcloud config set compute/zone us-west3-b
+	export zone=us-west3-b
 ```
 
+- - -
 
 ## Create an Instance 
 
@@ -37,6 +38,8 @@
     --target-tags network-lb-tag --allow tcp:80
     
 ```
+- - -
+
 
 ## Phase1: Create an Instance Template  from source instance
 	--source-instance=web-app \
@@ -60,7 +63,7 @@
 
 ```bash
 	gcloud compute instance-groups managed create nucleus-web-mig \
-   --template=nucleus-web-template --size=2 --region=us-west1 --base-instance-name web-app
+   --template=nucleus-web-template --size=2 --region=$region --base-instance-name web-app
 
 ```
 
@@ -68,27 +71,35 @@
 ## Create a Target Pool
 
 ```bash
-	  gcloud compute target-pools create web-pool \
-    --region $region --http-health-check basic-check
+	  gcloud compute target-pools create nucleus-pool \
+    --region $region --http-health-check http-basic-check
 ```
 
 ## Phase3: Create a firewall rule to allow traffic (80/tcp)
 
 ```bash
 
-gcloud compute firewall-rules create permit-tcp-rule-294 \
+gcloud compute firewall-rules create allow-tcp-rule-148 \
 	--network=nucleus-vpc \
   	--allow tcp:80 \
   	--direction=ingress \
-  	--target-tags=nucleus-web \
+  	--target-tags=nucleus-web
   
+  OR
+  gcloud compute firewall-rules create allow-tcp-health-check \
+  --network=nucleus-vpc \
+  --action=allow \
+  --direction=ingress \
+  --source-ranges=130.211.0.0/22,35.191.0.0/16,0.0.0.0/0 \
+  --target-tags=nucleus-web \
+  --rules=tcp:80
 ```
 
 
 ## Phase4: Create a Health Check
 
 ```bash
-   gcloud compute http-health-checks create http http-basic-check 
+   gcloud compute http-health-checks create http-basic-check 
 
 ```
 
@@ -96,9 +107,9 @@ gcloud compute firewall-rules create permit-tcp-rule-294 \
 
 ```bash
 	gcloud compute instance-groups managed \
-          set-named-ports nucleus-web-group-ports \
+          set-named-ports nucleus-web-mig \
           --named-ports http:80 \
-          --region us-west1
+          --region $region
 
 ```
 
@@ -107,7 +118,7 @@ gcloud compute firewall-rules create permit-tcp-rule-294 \
 ```bash
 	gcloud compute backend-services create nucleus-backend-service \
   --protocol=HTTP \
-  --health-checks=http-basic-check \
+  --http-health-checks=http-basic-check \
   --global
   
 ```
@@ -117,7 +128,7 @@ gcloud compute firewall-rules create permit-tcp-rule-294 \
 ```bash
 	gcloud compute backend-services add-backend nucleus-backend-service \
   --instance-group=nucleus-web-mig \
-  --instance-group-region=us-west1 \
+  --instance-group-region=$region \
   --global
 ```
 
@@ -149,20 +160,3 @@ gcloud compute firewall-rules create permit-tcp-rule-294 \
 	gcloud compute forwarding-rules list
 ```
     
-    
-  gcloud compute instances create nucleus-jumphost-463  \
-    --tags=nucleus \
-    --machine-type=e2-micro \
-    --image-family=debian-11 \
-    --image-project=debian-cloud \
-    --metadata=startup-script='cat << EOF > ~/startup.sh 
-	#! /bin/bash
-	apt-get update && apt-get install -y nginx
-	service nginx start 
-	var=$(echo -e $HOSTNAME)
-	echo $var
-	sed -i -- "s/nginx/Google Cloud Platform - '"\$HOSTNAME"' /" /var/www/html/index.nginx-debian.html
-	EOF
-	bash ~/startup.sh'
-
-
