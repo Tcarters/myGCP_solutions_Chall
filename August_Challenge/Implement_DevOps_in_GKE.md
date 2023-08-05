@@ -217,3 +217,6 @@ EOF
     kubectl rollout undo deployment/production-deployment  --to-revision=1 -n prod  
 
 ```
+
+
+-----------------------------------------------END OF GAME---------------------------------------------------------------
