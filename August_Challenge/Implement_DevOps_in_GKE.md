@@ -3,10 +3,10 @@
 
 ```bash
     export CLUSTER_NAME=hello-cluster
-export ZONE=us-central1-b
-export REGION=us-central1
-export REPO=my-repository
-export PROJECT_ID=$(gcloud config get-value project)
+    export ZONE=us-central1-a
+    export REGION=us-central1
+    export REPO=my-repository
+    export PROJECT_ID=$(gcloud config get-value project)
 
 ```
 
@@ -15,7 +15,7 @@ export PROJECT_ID=$(gcloud config get-value project)
 ```bash
     gcloud artifacts repositories create my-repository \
   --repository-format=docker \
-  --location=$region
+  --location=$ZONE
 ```
 
 ### Create a GKE cluster named `hello-cluster`
@@ -66,6 +66,25 @@ export PROJECT_ID=$(gcloud config get-value project)
 
 ```
 
+4. Add code to remote repo
+
+```bash
+    cd sample-app
+
+    git switch master
+
+    git add .
+
+    git commit -m "1st on Master"
+
+    git push -u origin master
+
+    git checkout -b dev
+
+    git push -u origin dev
+
+```
+
 
 ## Task3 Create the cloud Build Triggers
 
@@ -81,10 +100,36 @@ export PROJECT_ID=$(gcloud config get-value project)
 
 - Deploying the devdelopment application
 
+. Content of nee `` cloudbuild-dev.yaml``
+
+```yaml
+    steps:
+  # Step 1: Compile the Go Application
+  - name: 'gcr.io/cloud-builders/go'
+    env: ['GOPATH=/gopath']
+    args: ['build', '-o', 'main', 'main.go']
+
+  # Step 2: Build the Docker image for the Go application
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/my-repository/hello-cloudbuild-dev:v1.0', '.']
+
+  # Step 3: Push the Docker image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/my-repository/hello-cloudbuild-dev:v1.0']
+
+  # Step 4: Apply the production deployment YAML file to the production namespace
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'Deploy'
+    args: ['-n', 'dev', 'apply', '-f', 'dev/deployment.yaml']
+    env:
+    - 'CLOUDSDK_COMPUTE_REGION=us-central1-a'
+    - 'CLOUDSDK_CONTAINER_CLUSTER=hello-cluster'
+```
+
 ```bash
     sed -i "s/<version>/v1.0/g" cloudbuild-dev.yaml
 
-    sed -i "s/<todo>/${REGION}-docker.pkg.dev/${PROJECT_ID}/$REPO/hello-cloudbuild-dev:v1.0/g"  dev/deployment.yaml
+    sed -i "s/<todo>/us-central1-docker.pkg.dev/qwiklabs-gcp-01-c7220b1c6f7f/my-repository/hello-cloudbuild-dev:v1.0/g"  dev/deployment.yaml
 
     git add .
 
@@ -106,11 +151,12 @@ export PROJECT_ID=$(gcloud config get-value project)
 
 - Deploying the production application
 
+
 ```bash
     
     sed -i "s/<version>/v1.0/g" cloudbuild.yaml
     
-    sed -i "s/<todo>/${REGION}-docker.pkg.dev/${PROJECT_ID}/$REPO/hello-cloudbuild:v1.0" prod/deployment.yaml
+    sed -i "s/<todo>/${REGION}-docker.pkg.dev/qwiklabs-gcp-01-c7220b1c6f7f/$REPO/hello-cloudbuild:v1.0" prod/deployment.yaml
 
     git switch master
 
@@ -129,6 +175,36 @@ export PROJECT_ID=$(gcloud config get-value project)
 
 
 ```
+
+- New content of ``cloudbuild.yaml ``
+
+```yaml
+    steps:
+  # Step 1: Compile the Go Application
+  - name: 'gcr.io/cloud-builders/go'
+    id: 'Compile application'
+    env: ['GOPATH=/gopath']
+    args: ['build', '-o', 'main', 'main.go']
+
+  # Step 2: Build the Docker image for the Go application
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Build Docker image'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/my-repository/hello-cloudbuild:v1.0', '.']
+
+  # Step 3: Push the Docker image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push Docker image'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/my-repository/hello-cloudbuild:v1.0']
+
+  # Step 4: Apply the production deployment YAML file to the production namespace
+  - name: 'gcr.io/cloud-builders/kubectl'
+    id: 'Deploy'
+    args: ['-n', 'prod', 'apply', '-f', 'prod/deployment.yaml']
+    env:
+    - 'CLOUDSDK_COMPUTE_REGION=us-central1-a'
+    - 'CLOUDSDK_CONTAINER_CLUSTER=hello-cluster'
+```
+
 
 ## Task 5. Deploy the second versions of the application
 
