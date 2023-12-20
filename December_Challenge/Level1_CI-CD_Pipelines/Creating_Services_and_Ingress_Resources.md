@@ -140,5 +140,56 @@ kubectl apply -f ./hello-lb-svc.yaml
 
 ```
 
+![image](https://github.com/Tcarters/myGCP_solutions_Chall/assets/71230412/8cf5f4a7-7397-4586-b8e7-47467f389fc6)
+
+- curl [external_IP]
+
+![image](https://github.com/Tcarters/myGCP_solutions_Chall/assets/71230412/bb088e92-391f-4478-bb6d-99106a693b6e)
 
 
+## Task 7. Deploy an ingress resource
+
+> You have two services in your cluster for the hello application. One service is hosting version 1.0 via a NodePort service, while the other service is hosting version 2.0 via a LoadBalancer service. You will now deploy an Ingress resource that will direct traffic to both services based on the URL entered by the user.
+
+- Create an ingress resource
+
+```yml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hello-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    kubernetes.io/ingress.global-static-ip-name: "global-ingress"
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /v1
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: hello-svc
+            port:
+              number: 80
+      - path: /v2
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: hello-lb-svc
+            port:
+              number: 80
+```
+
+```bash
+## Create service
+
+kubectl apply -f hello-ingress.yaml
+
+kubectl describe ingress hello-ingress
+curl http://[external_IP]/v1
+curl http://[external_IP]/v2
+
+```
+
+Done...
